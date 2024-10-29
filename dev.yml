@@ -1,0 +1,69 @@
+version: '3'
+
+volumes:
+  production_dev_data: {}
+  production_dev_data_backups: {}
+
+services:
+  django: &django
+    build:
+      context: .
+      dockerfile: ./compose/production/django/Dockerfile
+
+    image: shipmate_dev_django
+    volumes:
+      - /var/www/api.shipmate.com/media:/app/shipmate/media
+      - /var/www/api.shipmate.com/static:/app/staticfiles
+
+    depends_on:
+      - postgres
+      - redis
+#      - playwright_ocean  # Add playwright dependency
+    ports:
+      - "7501:5000"
+    env_file:
+      - ./.envs/.production/.django
+      - ./.envs/.production/.postgres
+    command: /start
+
+  postgres:
+    build:
+      context: .
+      dockerfile: ./compose/production/postgres/Dockerfile
+    image: shipmate_dev_postgres
+    volumes:
+      - production_dev_data:/var/lib/postgresql/data
+      - production_dev_data_backups:/backups
+    env_file:
+      - ./.envs/.production/.postgres
+
+  redis:
+    image: docker.io/redis:6
+
+  celeryworker:
+    <<: *django
+    image: shipmate_dev_celeryworker
+    command: /start-celeryworker
+    ports: []
+
+  celerybeat:
+    <<: *django
+    image: shipmate_dev_celerybeat
+    command: /start-celerybeat
+    ports: []
+
+#  flower:
+#    <<: *django
+#    image: shipmate_dev_flower
+#    command: /start-flower
+#    ports:
+#      - "5555:5555"
+
+  # Add playwright service
+#  playwright_ocean:
+#    image: jacoblincool/playwright:chromium-server
+#    environment:
+#      - PLAYWRIGHT_CHROMIUM_DEBUG_PORT=53333  # Ensure Playwright runs on the correct port
+#    volumes:
+#      - /var/www/api.ocean.connectacrm.com/playwright:/playwright  # Example volume (optional, adjust as needed)
+#    restart: unless-stopped
